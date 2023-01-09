@@ -21,7 +21,7 @@ uniform sampler2D SplatWeights0Tex;
 uniform sampler2D SplatWeights1Tex;
 uniform sampler2D SplatWeights2Tex;
 uniform sampler2D SplatWeights3Tex;
-uniform float tilesArray[32];
+uniform float tilesArray[16];
  
    
 UNITY_DECLARE_TEX2DARRAY(AlbedoAtlas);
@@ -52,7 +52,7 @@ void SplatmapVert(inout appdata_full v, out Input data)
 #endif
  {
      half2 offsetFix = -half2(0.5, 0.5) / SpaltIDTexSize;
-     int4 sharedID = tex2D(SpaltIDTex, IN.tc_Control+ offsetFix)* 32 + 0.5;
+     int4 sharedID = tex2D(SpaltIDTex, IN.tc_Control+ offsetFix)* 16 + 0.5;
  
      splat_control = 0;
  
@@ -68,7 +68,7 @@ void SplatmapVert(inout appdata_full v, out Input data)
      half3 color2 =  UNITY_SAMPLE_TEX2DARRAY(AlbedoAtlas, float3(IN.tc_Control * tilesArray[sharedID.b], sharedID.b));
      half3 color3 =  UNITY_SAMPLE_TEX2DARRAY(AlbedoAtlas, float3(IN.tc_Control * tilesArray[sharedID.a], sharedID.a));
  
- 
+    
     
          //计算双线性插值
         float4 mixedWeight = 0;

@@ -15,7 +15,8 @@ public class FastTerrain : MonoBehaviour
     //splat rgba存放 相邻4个顶点一起计算权重后 权重最大的4个id
     public Texture2D splatID;
     public Texture2D[] splatWeights;//记录 相邻4个顶点相对splatID的权重,因为不是独立顶点记录所以不会出现常见插值错误,(不同id插值权重导致错误)
-
+    [Range(0, 5)]
+    public int weightMipmap = 0;
 
     public Shader terrainShader;
     public TerrainData normalTerrainData;
@@ -56,7 +57,7 @@ public class FastTerrain : MonoBehaviour
 
         }
 
-        tilesArray = new float[32];//匹配shader内定长数组
+        tilesArray = new float[16];//匹配shader内定长数组
         for (int i = 0; i < layerCount; i++)
         {
             tilesArray[i] = normalTerrainData.size.x / normalTerrainData.splatPrototypes[i].tileSize.x;
@@ -81,14 +82,19 @@ public class FastTerrain : MonoBehaviour
     {
 
 
+        int scale = 1 << weightMipmap;
 
-        int wid = normalTerrainData.alphamapTextures[0].width;
-        int hei = normalTerrainData.alphamapTextures[0].height;
-        List<Color[]> colors = new List<Color[]>();
+        int wid = normalTerrainData.alphamapTextures[0].width / scale;
+        int hei = normalTerrainData.alphamapTextures[0].height / scale;
+    
+        List<Texture2D> originSplatTexs = new List<Texture2D>();
 
         for (int i = 0; i < normalTerrainData.alphamapTextures.Length; i++)
         {
-            colors.Add(normalTerrainData.alphamapTextures[i].GetPixels());
+   
+            var tex= new Texture2D(wid, hei, TextureFormat.ARGB32, false, true);
+            tex.SetPixels(normalTerrainData.alphamapTextures[i].GetPixels(weightMipmap));
+            originSplatTexs.Add(tex);
         }
 
         splatID = new Texture2D(wid, hei, TextureFormat.RGBA32, false, true);
@@ -107,7 +113,7 @@ public class FastTerrain : MonoBehaviour
 
 
 
-
+        float offset = -0.5f;
 
         for (int i = 0; i < hei; i++)
         {
@@ -115,48 +121,61 @@ public class FastTerrain : MonoBehaviour
             {
                 List<SplatData> splatDatas = new List<SplatData>();
                 int index = i * wid + j;
+              
                 //边界处没有x+ y+纹素 所以不做4顶点计算 只算自己
                 int useOffset = i != hei - 1 && j != wid - 1 ? 1 : 0;
-
-                for (int k = 0; k < colors.Count; k++)
+                
+                for (int k = 0; k < originSplatTexs.Count; k++)
                 {
                     SplatData sd;
                     sd.id = k * 4;
-                    sd.weight = colors[k][index].r + colors[k][index + (0 * wid + 1) * useOffset].r + colors[k][index + (1 * wid + 0) * useOffset].r + colors[k][index + (1 * wid + 1) * useOffset].r;
-                    splatDatas.Add(sd);
-                    sd.id++;
-                    sd.weight = colors[k][index].g + colors[k][index + (0 * wid + 1) * useOffset].g + colors[k][index + (1 * wid + 0) * useOffset].g + colors[k][index + (1 * wid + 1) * useOffset].g;
+                    Color corner00 = originSplatTexs[k].GetPixelBilinear((float)(j+ offset) / wid, (float)(i+ offset) / wid);
+                    Color corner10 = originSplatTexs[k].GetPixelBilinear((float)(j+1+ offset) / wid, (float)(i+ offset) / wid);
+                    Color corner01 = originSplatTexs[k].GetPixelBilinear((float)(j+ offset) / wid, (float)(i+1+ offset) / wid);
+                    Color corner11 = originSplatTexs[k].GetPixelBilinear((float)(j+1+ offset) / wid, (float)(i+1+ offset) / wid);
+                    sd.weight = corner00.r + corner10.r + corner01.r + corner11.r;
+
 
                     splatDatas.Add(sd);
                     sd.id++;
-                    sd.weight = colors[k][index].b + colors[k][index + (0 * wid + 1) * useOffset].b + colors[k][index + (1 * wid + 0) * useOffset].b + colors[k][index + (1 * wid + 1) * useOffset].b;
-
+                    
+                    sd.weight = corner00.g + corner10.g + corner01.g + corner11.g;
                     splatDatas.Add(sd);
                     sd.id++;
-                    sd.weight = colors[k][index].a + colors[k][index + (0 * wid + 1) * useOffset].a + colors[k][index + (1 * wid + 0) * useOffset].a + colors[k][index + (1 * wid + 1) * useOffset].a;
-
+                  
+                    sd.weight = corner00.b + corner10.b + corner01.b + corner11.b;
+                    splatDatas.Add(sd);
+                    sd.id++;
+                   
+                    sd.weight = corner00.a + corner10.a + corner01.a + corner11.a;
                     splatDatas.Add(sd);
                 }
 
 
                 //按权排序选出相邻4个点最权重最大的ID 作为4个点都采样的公用id
                 splatDatas.Sort((x, y) => -(x.weight).CompareTo(y.weight));
-                splatIDColors[index].r = splatDatas[0].id / 32f; //
-                splatIDColors[index].g = splatDatas[1].id / 32f; //
-                splatIDColors[index].b = splatDatas[2].id / 32f; //
-                splatIDColors[index].a = splatDatas[3].id / 32f; //
+                splatIDColors[index].r = splatDatas[0].id / 16f; //
+                splatIDColors[index].g = splatDatas[1].id / 16f; //
+                splatIDColors[index].b = splatDatas[2].id / 16f; //
+                splatIDColors[index].a = splatDatas[3].id / 16f; //
 
                 Vector4 lostWeight = Vector4.zero;
 
-                for (int k = 4; k < colors.Count * 4; k++)
+                for (int k = 4; k < originSplatTexs.Count * 4; k++)
                 {
                     int layer;
                     int channel;
                     //权重只记录前4张 所以需要统计丢弃部分的权重 并平均加到前4张上
                     getWeightLayerAndChannel(splatDatas[k].id, out layer, out channel);
-                    lostWeight += new Vector4(colors[layer][index + (0 * wid + 0) * useOffset][channel], colors[layer][index + (0 * wid + 1) * useOffset][channel],
-                        colors[layer][index + (1 * wid + 0) * useOffset][channel], colors[layer][index + (1 * wid + 1) * useOffset][channel]);
+                 
+                     
 
+                    Color corner00 = originSplatTexs[layer].GetPixelBilinear((float)(j+ offset) / wid, (float)(i+ offset) / wid);
+                    Color corner10 = originSplatTexs[layer].GetPixelBilinear((float)(j+1+ offset) / wid, (float)(i+ offset) / wid);
+                    Color corner01 = originSplatTexs[layer].GetPixelBilinear((float)(j+ offset) / wid, (float)(i+1+ offset) / wid);
+                    Color corner11 = originSplatTexs[layer].GetPixelBilinear((float)(j + 1 + offset) / wid, (float)(i + 1 + offset) / wid);
+
+                    lostWeight +=new  Vector4( corner00[channel], corner10[channel], corner01[channel], corner11[channel]);
 
 
                 }
@@ -169,10 +188,12 @@ public class FastTerrain : MonoBehaviour
                     int channel;
 
                     getWeightLayerAndChannel(splatDatas[k].id, out layer, out channel);
-                    splatWeightsColors[k][index] = new Vector4(colors[layer][index + (0 * wid + 0) * useOffset][channel], colors[layer][index + (0 * wid + 1) * useOffset][channel],
-                        colors[layer][index + (1 * wid + 0) * useOffset][channel], colors[layer][index + (1 * wid + 1) * useOffset][channel]) + lostWeight;
-
-
+                    
+                    Color corner00 = originSplatTexs[layer].GetPixelBilinear((float)(j+ offset) / wid, (float)(i+ offset) / wid);
+                    Color corner10 = originSplatTexs[layer].GetPixelBilinear((float)(j+1+ offset) / wid, (float)(i+ offset) / wid);
+                    Color corner01 = originSplatTexs[layer].GetPixelBilinear((float)(j+ offset) / wid, (float)(i+1+ offset) / wid);
+                    Color corner11 = originSplatTexs[layer].GetPixelBilinear((float)(j + 1 + offset) / wid, (float)(i + 1 + offset) / wid);
+                    splatWeightsColors[k][index] = new Vector4(corner00[channel], corner10[channel], corner01[channel], corner11[channel]) + lostWeight;
 
                 }
 
@@ -192,7 +213,7 @@ public class FastTerrain : MonoBehaviour
 
 
     }
-
+     
     private void getWeightLayerAndChannel(int id, out int layer, out int channel)
     {
         layer = id / 4;
@@ -238,6 +259,16 @@ public class FastTerrain : MonoBehaviour
         t.terrainData = normalTerrainData;
         t.materialType = Terrain.MaterialType.BuiltInStandard;
         t.materialTemplate = null;
+    }
+    [ContextMenu("savePngs")]
+    void savePngs()
+    {
+        System.IO.File.WriteAllBytes(Application.dataPath + @"/splatID.png", splatID.EncodeToPNG());
+        for (int i = 0; i < splatWeights.Length; i++)
+        {
+            System.IO.File.WriteAllBytes(Application.dataPath + @"/splatWeights" + i + ".png", splatWeights[i].EncodeToPNG());
+        }
+
     }
 
     void Start() {
