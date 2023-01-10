@@ -113,7 +113,7 @@ public class FastTerrain : MonoBehaviour
 
 
 
-        float offset = -0.5f;
+        float offset = 0;// -0.5f;
 
         for (int i = 0; i < hei; i++)
         {
@@ -247,6 +247,7 @@ public class FastTerrain : MonoBehaviour
 
         Shader.SetGlobalFloatArray("tilesArray", tilesArray);
         Shader.SetGlobalInt("SpaltIDTexSize", splatID.width);
+        Shader.SetGlobalInt("WeightMipmapScale",  1 << weightMipmap);
 
 
 
