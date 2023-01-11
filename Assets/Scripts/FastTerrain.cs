@@ -247,7 +247,7 @@ public class FastTerrain : MonoBehaviour
 
         Shader.SetGlobalFloatArray("tilesArray", tilesArray);
         Shader.SetGlobalInt("SpaltIDTexSize", splatID.width);
-        Shader.SetGlobalInt("WeightMipmapScale",  1 << weightMipmap);
+      
 
 
 

@@ -22,7 +22,7 @@ uniform sampler2D SplatWeights1Tex;
 uniform sampler2D SplatWeights2Tex;
 uniform sampler2D SplatWeights3Tex;
 uniform float tilesArray[16];
-uniform int WeightMipmapScale;
+ 
  
    
 UNITY_DECLARE_TEX2DARRAY(AlbedoAtlas);
@@ -52,8 +52,9 @@ void SplatmapVert(inout appdata_full v, out Input data)
  void SplatmapMix(Input IN, out float4 splat_control, out half weight, out fixed4 mixedDiffuse, inout fixed3 mixedNormal)
 #endif
  {
-     half2 offsetFix = -half2(0.5, 0.5) / SpaltIDTexSize;
-     half2 offsetBilinearFix = -half2(0.5, 0.5) /(SpaltIDTexSize+4.0/WeightMipmapScale);
+     half2 offsetFix =  -half2(0.5, 0.5) / SpaltIDTexSize;
+     //这里1024 是固定的 与任何尺寸的贴图都无关 原因不明 多尺寸验证出的神秘数字
+     half2 offsetBilinearFix = offsetFix+2.0/1024/ SpaltIDTexSize;
      int4 sharedID = tex2D(SpaltIDTex, IN.tc_Control+ offsetFix)* 16 + 0.5;
  
      splat_control = 0;
