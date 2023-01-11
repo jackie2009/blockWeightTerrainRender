@@ -247,6 +247,7 @@ public class FastTerrain : MonoBehaviour
 
         Shader.SetGlobalFloatArray("tilesArray", tilesArray);
         Shader.SetGlobalInt("SpaltIDTexSize", splatID.width);
+        Shader.SetGlobalInt("AlbedoSize", albedoAtlas.width);
       
 
 

@@ -16,6 +16,7 @@ float4 _Control_ST;
  
 uniform sampler2D SpaltIDTex;
 uniform int SpaltIDTexSize;
+uniform int AlbedoSize;
  
 uniform sampler2D SplatWeights0Tex;
 uniform sampler2D SplatWeights1Tex;
@@ -63,19 +64,14 @@ void SplatmapVert(inout appdata_full v, out Input data)
  
   
     
-     //计算第一重要 相邻4个点颜色
- 
-     half3 color0 =  UNITY_SAMPLE_TEX2DARRAY(AlbedoAtlas, float3(IN.tc_Control * tilesArray[sharedID.r], sharedID.r));
-     half3 color1 =  UNITY_SAMPLE_TEX2DARRAY(AlbedoAtlas, float3(IN.tc_Control * tilesArray[sharedID.g], sharedID.g));
-     half3 color2 =  UNITY_SAMPLE_TEX2DARRAY(AlbedoAtlas, float3(IN.tc_Control * tilesArray[sharedID.b], sharedID.b));
-     half3 color3 =  UNITY_SAMPLE_TEX2DARRAY(AlbedoAtlas, float3(IN.tc_Control * tilesArray[sharedID.a], sharedID.a));
+
  
     
     
          //计算双线性插值
          float4 mixedWeight = 0;
          //采样器精度是half 所以有1.0f/512的偏差 不修正这个会有接缝 https://www.reedbeta.com/blog/texture-gathers-and-coordinate-precision/
-         const float offsetBilinearFix =  1.0f / 512;
+         const float offsetBilinearFix =   1.0f / 512;
          half2 uv_frac = frac( IN.tc_Control  * SpaltIDTexSize-0.5+ offsetBilinearFix);
          float4 weight4 = tex2D(SplatWeights0Tex, IN.tc_Control + offsetFix);;
          mixedWeight.x = lerp(lerp(weight4.r, weight4.g, uv_frac.x), lerp(weight4.b, weight4.a, uv_frac.x), uv_frac.y);
@@ -91,19 +87,45 @@ void SplatmapVert(inout appdata_full v, out Input data)
   
          mixedWeight  /= (weight + 1e-3f);
        
+
          
+         float2 dx = ddx(IN.tc_Control);
+         float2 dy = ddy(IN.tc_Control);
+         float4 tiles = float4(tilesArray[sharedID.r], tilesArray[sharedID.g], tilesArray[sharedID.b], tilesArray[sharedID.a]);
+#ifdef UNITY_SAMPLE_TEX2DARRAY_GRAD
+         //计算ddx ddy 用grad采样
+         half3 color0 =  UNITY_SAMPLE_TEX2DARRAY_GRAD(AlbedoAtlas, float3(IN.tc_Control * tiles.r, sharedID.r), dx * tiles.x, dy * tiles.x);
+         half3 color1 = UNITY_SAMPLE_TEX2DARRAY_GRAD(AlbedoAtlas, float3(IN.tc_Control * tiles.g, sharedID.g), dx* tiles.y, dy * tiles.y);
+         half3 color2 = UNITY_SAMPLE_TEX2DARRAY_GRAD(AlbedoAtlas, float3(IN.tc_Control * tiles.b, sharedID.b), dx* tiles.z, dy * tiles.z);
+         half3 color3 = UNITY_SAMPLE_TEX2DARRAY_GRAD(AlbedoAtlas, float3(IN.tc_Control * tiles.a, sharedID.a), dx* tiles.w, dy * tiles.w);
+         
+         half4 normal0 = UNITY_SAMPLE_TEX2DARRAY_GRAD(NormalAtlas, float3(IN.tc_Control * tiles.r, sharedID.r), dx * tiles.x, dy * tiles.x);
+         half4 normal1 = UNITY_SAMPLE_TEX2DARRAY_GRAD(NormalAtlas, float3(IN.tc_Control * tiles.g, sharedID.g), dx * tiles.y, dy * tiles.y);
+         half4 normal2 = UNITY_SAMPLE_TEX2DARRAY_GRAD(NormalAtlas, float3(IN.tc_Control * tiles.b, sharedID.b), dx * tiles.z, dy * tiles.z);
+         half4 normal3 = UNITY_SAMPLE_TEX2DARRAY_GRAD(NormalAtlas, float3(IN.tc_Control * tiles.a, sharedID.a), dx * tiles.w, dy * tiles.w);
+#else
+         //手动计算mipmap lod模式
+         float4 md = max(dot(dx, dx), dot(dy, dy))* AlbedoSize* AlbedoSize* tiles* tiles;
+         float4 mipmap4 = max(0.5 * log2(md)-1,0)  ;
+         half3 color0 = UNITY_SAMPLE_TEX2DARRAY_LOD(AlbedoAtlas, float3(IN.tc_Control * tiles.r, sharedID.r), mipmap4.r);
+         half3 color1 = UNITY_SAMPLE_TEX2DARRAY_LOD(AlbedoAtlas, float3(IN.tc_Control * tiles.g, sharedID.g),mipmap4.g);
+         half3 color2 = UNITY_SAMPLE_TEX2DARRAY_LOD(AlbedoAtlas, float3(IN.tc_Control * tiles.b, sharedID.b),mipmap4.b);
+         half3 color3 = UNITY_SAMPLE_TEX2DARRAY_LOD(AlbedoAtlas, float3(IN.tc_Control * tiles.a, sharedID.a),mipmap4.a);
+
+         half4 normal0 = UNITY_SAMPLE_TEX2DARRAY_LOD(NormalAtlas, float3(IN.tc_Control * tiles.r, sharedID.r), mipmap4.r);
+         half4 normal1 = UNITY_SAMPLE_TEX2DARRAY_LOD(NormalAtlas, float3(IN.tc_Control * tiles.g, sharedID.g), mipmap4.g);
+         half4 normal2 = UNITY_SAMPLE_TEX2DARRAY_LOD(NormalAtlas, float3(IN.tc_Control * tiles.b, sharedID.b), mipmap4.b);
+         half4 normal3 = UNITY_SAMPLE_TEX2DARRAY_LOD(NormalAtlas, float3(IN.tc_Control * tiles.a, sharedID.a), mipmap4.a);
+#endif    
+   
          mixedDiffuse.rgb = color0 * mixedWeight.x + color1 * mixedWeight.y + color2 * mixedWeight.z  +color3 * mixedWeight.w;
          mixedDiffuse.a = 0;//smoothness
 
 
-         
-
-         half4 normal0 = UNITY_SAMPLE_TEX2DARRAY(NormalAtlas, float3(IN.tc_Control * tilesArray[sharedID.r], sharedID.r));
-         half4 normal1 = UNITY_SAMPLE_TEX2DARRAY(NormalAtlas, float3(IN.tc_Control * tilesArray[sharedID.g], sharedID.g));
-         half4 normal2 = UNITY_SAMPLE_TEX2DARRAY(NormalAtlas, float3(IN.tc_Control * tilesArray[sharedID.b], sharedID.b));
-         half4 normal3= UNITY_SAMPLE_TEX2DARRAY(NormalAtlas, float3(IN.tc_Control * tilesArray[sharedID.a], sharedID.a));
-     
  
+
+     
+         
 
      
          half4 nrm = normal0 * mixedWeight.x + normal1 * mixedWeight.y + normal2 * mixedWeight.z +normal3 * mixedWeight.w;
