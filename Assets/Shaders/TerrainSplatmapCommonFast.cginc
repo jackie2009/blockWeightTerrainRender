@@ -52,9 +52,8 @@ void SplatmapVert(inout appdata_full v, out Input data)
  void SplatmapMix(Input IN, out float4 splat_control, out half weight, out fixed4 mixedDiffuse, inout fixed3 mixedNormal)
 #endif
  {
-     half2 offsetFix =  -half2(0.5, 0.5) / SpaltIDTexSize;
-     //这里1024 是固定的 与任何尺寸的贴图都无关 原因不明 多尺寸验证出的神秘数字
-     half2 offsetBilinearFix = offsetFix+2.0/1024/ SpaltIDTexSize;
+     half2 offsetFix =   -half2(0.5, 0.5) / SpaltIDTexSize;
+ 
      int4 sharedID = tex2D(SpaltIDTex, IN.tc_Control+ offsetFix)* 16 + 0.5;
  
      splat_control = 0;
@@ -74,8 +73,10 @@ void SplatmapVert(inout appdata_full v, out Input data)
     
     
          //计算双线性插值
-        float4 mixedWeight = 0;
-         half2 uv_frac = frac((IN.tc_Control + offsetBilinearFix) * SpaltIDTexSize);
+         float4 mixedWeight = 0;
+         //采样器精度是half 所以有1.0f/512的偏差 不修正这个会有接缝 https://www.reedbeta.com/blog/texture-gathers-and-coordinate-precision/
+         const float offsetBilinearFix =  1.0f / 512;
+         half2 uv_frac = frac( IN.tc_Control  * SpaltIDTexSize-0.5+ offsetBilinearFix);
          float4 weight4 = tex2D(SplatWeights0Tex, IN.tc_Control + offsetFix);;
          mixedWeight.x = lerp(lerp(weight4.r, weight4.g, uv_frac.x), lerp(weight4.b, weight4.a, uv_frac.x), uv_frac.y);
          weight4 = tex2D(SplatWeights1Tex, IN.tc_Control + offsetFix);
