@@ -72,15 +72,15 @@ void SplatmapVert(inout appdata_full v, out Input data)
          //采样器精度是half 所以有1.0f/512的偏差 不修正这个会有接缝 https://www.reedbeta.com/blog/texture-gathers-and-coordinate-precision/
          const float offsetBilinearFix =   1.0f / 512;
          half2 uv_frac = frac( IN.tc_Control  * SpaltIDTexSize-0.5+ offsetBilinearFix);
-         int4 weightRaw_0_1= tex2D(SplatWeights_0_1Tex, IN.tc_Control + offsetFix)*255+0.5;
-         int4 weightRaw_2_3 = tex2D(SplatWeights_2_3Tex, IN.tc_Control + offsetFix)*255+0.5;
-         float4 weight4 = float4((weightRaw_0_1.x % 16) / 15.0, (weightRaw_0_1.x / 16 % 16) / 15.0, (weightRaw_0_1.y % 16) / 15.0, (weightRaw_0_1.y / 16 % 16) / 15.0);
+         uint4 weightRaw_0_1= tex2D(SplatWeights_0_1Tex, IN.tc_Control + offsetFix)*255u+0.5f;
+         uint4 weightRaw_2_3 = tex2D(SplatWeights_2_3Tex, IN.tc_Control + offsetFix)*255u+0.5f;
+         float4 weight4 = float4((weightRaw_0_1.x % 16u) / 15.0f, (weightRaw_0_1.x / 16u % 16u) / 15.0f, (weightRaw_0_1.y % 16u) / 15.0f, (weightRaw_0_1.y / 16u % 16u) / 15.0f);
          mixedWeight.x = lerp(lerp(weight4.r, weight4.g, uv_frac.x), lerp(weight4.b, weight4.a, uv_frac.x), uv_frac.y);
-         weight4 = float4((weightRaw_0_1.z % 16) / 15.0, (weightRaw_0_1.z / 16 % 16) / 15.0, (weightRaw_0_1.w % 16) / 15.0, (weightRaw_0_1.w / 16 % 16) / 15.0);
+         weight4 = float4((weightRaw_0_1.z % 16u) / 15.0f, (weightRaw_0_1.z / 16u % 16u) / 15.0f, (weightRaw_0_1.w % 16u) / 15.0f, (weightRaw_0_1.w / 16u % 16u) / 15.0f);
          mixedWeight.y= lerp(lerp(weight4.r, weight4.g, uv_frac.x), lerp(weight4.b, weight4.a, uv_frac.x), uv_frac.y);
-         weight4 = float4((weightRaw_2_3.x % 16) / 15.0, (weightRaw_2_3.x / 16 % 16) / 15.0, (weightRaw_2_3.y % 16) / 15.0, (weightRaw_2_3.y / 16 % 16) / 15.0);
+         weight4 = float4((weightRaw_2_3.x % 16u) / 15.0f, (weightRaw_2_3.x / 16u % 16u) / 15.0f, (weightRaw_2_3.y % 16u) / 15.0f, (weightRaw_2_3.y / 16u % 16u) / 15.0f);
          mixedWeight.z = lerp(lerp(weight4.r, weight4.g, uv_frac.x), lerp(weight4.b, weight4.a, uv_frac.x), uv_frac.y);
-         weight4 = float4((weightRaw_2_3.z % 16) / 15.0, (weightRaw_2_3.z / 16 % 16) / 15.0, (weightRaw_2_3.w % 16) / 15.0, (weightRaw_2_3.w / 16 % 16) / 15.0);
+         weight4 = float4((weightRaw_2_3.z % 16u) / 15.0f, (weightRaw_2_3.z / 16u % 16u) / 15.0f, (weightRaw_2_3.w % 16u) / 15.0f, (weightRaw_2_3.w / 16u % 16u) / 15.0f);
          mixedWeight.w = lerp(lerp(weight4.r, weight4.g, uv_frac.x), lerp(weight4.b, weight4.a, uv_frac.x), uv_frac.y);
      
         
