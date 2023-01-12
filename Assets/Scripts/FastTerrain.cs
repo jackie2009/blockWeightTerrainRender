@@ -14,9 +14,7 @@ public class FastTerrain : MonoBehaviour
 
     //splat rgba存放 相邻4个顶点一起计算权重后 权重最大的4个id
     public Texture2D splatID;
-    //记录 相邻4个顶点相对splatID的权重,因为不是独立顶点记录所以不会出现常见插值错误,(不同id插值权重导致错误)
-    //这里用2张 rgba32 图 来存 原来4张 rgba16的图 容量上一样所以可以这样合并,但采样次数可以从4次减少到2次.如果高版本引擎这里有rgba64格式 那么一张贴图就够用,采样性能最高.否则如果用容量相同的rgbahalf存储,因为涉及复杂的int 浮点数(half)格式转换而不建议
-    public Texture2D  []splatWeights;
+    public Texture2D[] splatWeights;//记录 相邻4个顶点相对splatID的权重,因为不是独立顶点记录所以不会出现常见插值错误,(不同id插值权重导致错误)
     [Range(0, 5)]
     public int weightMipmap = 0;
 
@@ -104,18 +102,18 @@ public class FastTerrain : MonoBehaviour
         splatID.filterMode = FilterMode.Point;
 
         var splatIDColors = splatID.GetPixels();
-        splatWeights = new Texture2D[2];
+        splatWeights = new Texture2D[4];
         var splatWeightsColors = new Color[4][];
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < 4; i++)
         {
             splatWeights[i] = new Texture2D(wid, hei, TextureFormat.RGBA32, false, true);//这个权重图做成导入资源后可做dxt压缩
             splatWeights[i].filterMode = FilterMode.Point;
-             
+            splatWeightsColors[i] = splatWeights[i].GetPixels();
         }
-        for (int i = 0; i < 4; i++) splatWeightsColors[i] = new Color[wid*hei];
 
 
-            float offset = 0;// -0.5f;
+
+        float offset = 0;// -0.5f;
 
         for (int i = 0; i < hei; i++)
         {
@@ -195,24 +193,10 @@ public class FastTerrain : MonoBehaviour
                     Color corner10 = originSplatTexs[layer].GetPixelBilinear((float)(j+1+ offset) / wid, (float)(i+ offset) / wid);
                     Color corner01 = originSplatTexs[layer].GetPixelBilinear((float)(j+ offset) / wid, (float)(i+1+ offset) / wid);
                     Color corner11 = originSplatTexs[layer].GetPixelBilinear((float)(j + 1 + offset) / wid, (float)(i + 1 + offset) / wid);
-
                     splatWeightsColors[k][index] = new Vector4(corner00[channel], corner10[channel], corner01[channel], corner11[channel]) + lostWeight;
 
                 }
-                // 合并4张图 到2张
-                Vector4 w0 =splatWeightsColors[0][index];
-                Vector4 w1 =splatWeightsColors[1][index];
-                Vector4 w2 =splatWeightsColors[2][index];
-                Vector4 w3 =splatWeightsColors[3][index];
-                splatWeightsColors[0][index].r=((int)(w0.x*15+0.5f)+(int)(w0.y * 15 + 0.5f) * 16)/255.0f;
-                splatWeightsColors[0][index].g = ((int)(w0.z * 15 + 0.5f) + (int)(w0.w * 15 + 0.5f) * 16) / 255.0f;
-                splatWeightsColors[0][index].b = ((int)(w1.x * 15 + 0.5f) + (int)(w1.y * 15 + 0.5f) * 16) / 255.0f;
-                splatWeightsColors[0][index].a = ((int)(w1.z * 15 + 0.5f) + (int)(w1.w * 15 + 0.5f) * 16) / 255.0f;
 
-                splatWeightsColors[1][index].r = ((int)(w2.x * 15 + 0.5f) + (int)(w2.y * 15 + 0.5f) * 16) / 255.0f;
-                splatWeightsColors[1][index].g = ((int)(w2.z * 15 + 0.5f) + (int)(w2.w * 15 + 0.5f) * 16) / 255.0f;
-                splatWeightsColors[1][index].b = ((int)(w3.x * 15 + 0.5f) + (int)(w3.y * 15 + 0.5f) * 16) / 255.0f;
-                splatWeightsColors[1][index].a = ((int)(w3.z * 15 + 0.5f) + (int)(w3.w * 15 + 0.5f) * 16) / 255.0f;
 
             }
         }
@@ -221,7 +205,7 @@ public class FastTerrain : MonoBehaviour
         splatID.SetPixels(splatIDColors);
         splatID.Apply();
 
-        for (int k = 0; k < 2; k++)
+        for (int k = 0; k < 4; k++)
         {
             splatWeights[k].SetPixels(splatWeightsColors[k]);
             splatWeights[k].Apply();
@@ -253,10 +237,10 @@ public class FastTerrain : MonoBehaviour
 
 
         Shader.SetGlobalTexture("SpaltIDTex", splatID);
-      
-            Shader.SetGlobalTexture("SplatWeights_0_1Tex", splatWeights[0]);
-            Shader.SetGlobalTexture("SplatWeights_2_3Tex", splatWeights[1]);
-        
+        for (int k = 0; k < 4; k++)
+        {
+            Shader.SetGlobalTexture("SplatWeights" + k + "Tex", splatWeights[k]);
+        }
 
         Shader.SetGlobalTexture("AlbedoAtlas", albedoAtlas);
         Shader.SetGlobalTexture("NormalAtlas", normalAtlas);
