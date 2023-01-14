@@ -3,7 +3,7 @@
 
 #ifndef TERRAIN_SPLATMAP_COMMON_CGINC_INCLUDED
 #define TERRAIN_SPLATMAP_COMMON_CGINC_INCLUDED
-
+float sum4(float4 v) { return v.x + v.y + v.z + v.w; }
 struct Input
 {
 
@@ -19,7 +19,7 @@ uniform int SpaltIDTexSize;
 uniform int AlbedoSize;
  
 uniform sampler2D SplatWeights_0_1Tex;
-uniform sampler2D SplatWeights_2_3Tex;
+ 
  
 uniform float tilesArray[16];
  
@@ -55,7 +55,9 @@ void SplatmapVert(inout appdata_full v, out Input data)
      half2 offsetFix =   -half2(0.5, 0.5) / SpaltIDTexSize;
  
      int4 sharedID = tex2D(SpaltIDTex, IN.tc_Control+ offsetFix)* 16 + 0.5;
- 
+     int4 id_10 = tex2D(SpaltIDTex, IN.tc_Control + offsetFix+float2(1.0,0.0)/ SpaltIDTexSize) * 16 + 0.5;
+     int4 id_01 = tex2D(SpaltIDTex, IN.tc_Control + offsetFix+float2(0.0,1.0)/ SpaltIDTexSize) * 16 + 0.5;
+     int4 id_11 = tex2D(SpaltIDTex, IN.tc_Control + offsetFix+float2(1.0,1.0)/ SpaltIDTexSize) * 16 + 0.5;
      splat_control = 0;
  
 
@@ -72,18 +74,47 @@ void SplatmapVert(inout appdata_full v, out Input data)
          //采样器精度是half 所以有1.0f/512的偏差 不修正这个会有接缝 https://www.reedbeta.com/blog/texture-gathers-and-coordinate-precision/
          const float offsetBilinearFix =   1.0f / 512;
          half2 uv_frac = frac( IN.tc_Control  * SpaltIDTexSize-0.5+ offsetBilinearFix);
-         uint4 weightRaw_0_1= tex2D(SplatWeights_0_1Tex, IN.tc_Control + offsetFix)*255u+0.5f;
-         uint4 weightRaw_2_3 = tex2D(SplatWeights_2_3Tex, IN.tc_Control + offsetFix)*255u+0.5f;
-         float4 weight4 = float4((weightRaw_0_1.x % 16u) / 15.0f, (weightRaw_0_1.x / 16u % 16u) / 15.0f, (weightRaw_0_1.y % 16u) / 15.0f, (weightRaw_0_1.y / 16u % 16u) / 15.0f);
-         mixedWeight.x = lerp(lerp(weight4.r, weight4.g, uv_frac.x), lerp(weight4.b, weight4.a, uv_frac.x), uv_frac.y);
-         weight4 = float4((weightRaw_0_1.z % 16u) / 15.0f, (weightRaw_0_1.z / 16u % 16u) / 15.0f, (weightRaw_0_1.w % 16u) / 15.0f, (weightRaw_0_1.w / 16u % 16u) / 15.0f);
-         mixedWeight.y= lerp(lerp(weight4.r, weight4.g, uv_frac.x), lerp(weight4.b, weight4.a, uv_frac.x), uv_frac.y);
-         weight4 = float4((weightRaw_2_3.x % 16u) / 15.0f, (weightRaw_2_3.x / 16u % 16u) / 15.0f, (weightRaw_2_3.y % 16u) / 15.0f, (weightRaw_2_3.y / 16u % 16u) / 15.0f);
-         mixedWeight.z = lerp(lerp(weight4.r, weight4.g, uv_frac.x), lerp(weight4.b, weight4.a, uv_frac.x), uv_frac.y);
-         weight4 = float4((weightRaw_2_3.z % 16u) / 15.0f, (weightRaw_2_3.z / 16u % 16u) / 15.0f, (weightRaw_2_3.w % 16u) / 15.0f, (weightRaw_2_3.w / 16u % 16u) / 15.0f);
-         mixedWeight.w = lerp(lerp(weight4.r, weight4.g, uv_frac.x), lerp(weight4.b, weight4.a, uv_frac.x), uv_frac.y);
-     
+   
+
+             float4 weight00 = tex2D(SplatWeights_0_1Tex, IN.tc_Control + offsetFix);
+
+             float4 weight10 = tex2D(SplatWeights_0_1Tex, IN.tc_Control + offsetFix + float2(1.0, 0.0) / SpaltIDTexSize);
+             float4 weight01 = tex2D(SplatWeights_0_1Tex, IN.tc_Control + offsetFix + float2(0.0, 1.0) / SpaltIDTexSize);
+             float4 weight11 = tex2D(SplatWeights_0_1Tex, IN.tc_Control + offsetFix + float2(1.0, 1.0) / SpaltIDTexSize);
+                                                                                                                                                       
+             weight00.xyzw =float4( weight00.yxz,0);
+             weight10.xyzw = float4(weight10.yxz, 0);
+             weight01.xyzw = float4(weight01.yxz, 0);
+             weight11.xyzw = float4(weight11.yxz, 0);
+          weight00.w = 1 - sum4(weight00);
+             weight10.w = 1 - sum4(weight10);
+             weight01.w = 1 - sum4(weight01);
+             weight11.w = 1 - sum4(weight11); 
+         float4 weight4 = 0;
         
+         float4 martchWeight10;
+         float4 martchWeight01;
+         float4 martchWeight11;
+        
+         int4 id_00 = sharedID;
+         martchWeight10.x = sum4((id_00.rrrr == id_10.rgba ? 1 : 0) * weight10);
+         martchWeight01.x = sum4((id_00.rrrr == id_01.rgba ? 1 : 0) * weight01);
+         martchWeight11.x = sum4((id_00.rrrr == id_11.rgba ? 1 : 0) * weight11);
+  
+         martchWeight10.y = sum4((id_00.gggg == id_10.rgba ? 1 : 0) * weight10);
+         martchWeight01.y = sum4((id_00.gggg == id_01.rgba ? 1 : 0) * weight01);
+         martchWeight11.y = sum4((id_00.gggg == id_11.rgba ? 1 : 0) * weight11);
+ 
+         martchWeight10.z = sum4((id_00.bbbb == id_10.rgba ? 1 : 0) * weight10);
+         martchWeight01.z = sum4((id_00.bbbb == id_01.rgba ? 1 : 0) * weight01);
+         martchWeight11.z = sum4((id_00.bbbb == id_11.rgba ? 1 : 0) * weight11);
+          
+ 
+         martchWeight10.w = sum4((id_00.aaaa == id_10.rgba ? 1 : 0) * weight10);
+         martchWeight01.w = sum4((id_00.aaaa == id_01.rgba ? 1 : 0) * weight01);
+         martchWeight11.w = sum4((id_00.aaaa == id_11.rgba ? 1 : 0) * weight11);
+         mixedWeight = lerp(lerp(weight00, martchWeight10, uv_frac.x), lerp(martchWeight01, martchWeight11, uv_frac.x), uv_frac.y);
+       //  mixedWeight.w = 1 - mixedWeight.x - mixedWeight.y - mixedWeight.z;
          weight = dot(mixedWeight, half4(1, 1, 1, 1));
   
          mixedWeight  /= (weight + 1e-3f);

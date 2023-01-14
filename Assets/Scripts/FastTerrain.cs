@@ -15,8 +15,8 @@ public class FastTerrain : MonoBehaviour
     //splat rgba存放 相邻4个顶点一起计算权重后 权重最大的4个id
     public Texture2D splatID;
     //记录 相邻4个顶点相对splatID的权重,因为不是独立顶点记录所以不会出现常见插值错误,(不同id插值权重导致错误)
-    //这里用2张 rgba32 图 来存 原来4张 rgba16的图 容量上一样所以可以这样合并,但采样次数可以从4次减少到2次.如果高版本引擎这里有rgba64格式 那么一张贴图就够用,采样性能最高.否则如果用容量相同的rgbahalf存储,因为涉及复杂的int 浮点数(half)格式转换而不建议
-    public Texture2D  []splatWeights;
+    //这里用1张 rgba32 存文件后设置为rgb16 图 来存 前3个权重,第四个用 1-r-g-b获得,为了极限压缩显存,这里不再存周围4个点权重 而是通过多3次偏移采样来获取周围权重.但在1050ti上会增加0.2ms gpu左右开销.要省显存 还是省计算 根据实际项目选择
+    public Texture2D  splatWeights;
     [Range(0, 5)]
     public int weightMipmap = 0;
 
@@ -104,14 +104,10 @@ public class FastTerrain : MonoBehaviour
         splatID.filterMode = FilterMode.Point;
 
         var splatIDColors = splatID.GetPixels();
-        splatWeights = new Texture2D[2];
+        splatWeights = new Texture2D(wid, hei, TextureFormat.RGBA32, false, true);
+        splatWeights.filterMode = FilterMode.Point;
         var splatWeightsColors = new Color[4][];
-        for (int i = 0; i < 2; i++)
-        {
-            splatWeights[i] = new Texture2D(wid, hei, TextureFormat.RGBA32, false, true);//这个权重图做成导入资源后可做dxt压缩
-            splatWeights[i].filterMode = FilterMode.Point;
-             
-        }
+  
         for (int i = 0; i < 4; i++) splatWeightsColors[i] = new Color[wid*hei];
         for (int i = 0; i < hei; i++)
         {
@@ -285,15 +281,8 @@ public class FastTerrain : MonoBehaviour
                 Vector4 w1 =splatWeightsColors[1][index];
                 Vector4 w2 =splatWeightsColors[2][index];
                 Vector4 w3 =splatWeightsColors[3][index];
-                splatWeightsColors[0][index].r=((int)(w0.x*15+0.5f)+(int)(w0.y * 15 + 0.5f) * 16)/255.0f;
-                splatWeightsColors[0][index].g = ((int)(w0.z * 15 + 0.5f) + (int)(w0.w * 15 + 0.5f) * 16) / 255.0f;
-                splatWeightsColors[0][index].b = ((int)(w1.x * 15 + 0.5f) + (int)(w1.y * 15 + 0.5f) * 16) / 255.0f;
-                splatWeightsColors[0][index].a = ((int)(w1.z * 15 + 0.5f) + (int)(w1.w * 15 + 0.5f) * 16) / 255.0f;
-
-                splatWeightsColors[1][index].r = ((int)(w2.x * 15 + 0.5f) + (int)(w2.y * 15 + 0.5f) * 16) / 255.0f;
-                splatWeightsColors[1][index].g = ((int)(w2.z * 15 + 0.5f) + (int)(w2.w * 15 + 0.5f) * 16) / 255.0f;
-                splatWeightsColors[1][index].b = ((int)(w3.x * 15 + 0.5f) + (int)(w3.y * 15 + 0.5f) * 16) / 255.0f;
-                splatWeightsColors[1][index].a = ((int)(w3.z * 15 + 0.5f) + (int)(w3.w * 15 + 0.5f) * 16) / 255.0f;
+                splatWeightsColors[0][index] = new Color( w1.x, w0.x, w2.x);//rgb16 是 565 压缩 g通道精度高 存放权重最大值
+ 
 
             }
         }
@@ -302,11 +291,10 @@ public class FastTerrain : MonoBehaviour
         splatID.SetPixels(splatIDColors);
         splatID.Apply();
 
-        for (int k = 0; k < 2; k++)
-        {
-            splatWeights[k].SetPixels(splatWeightsColors[k]);
-            splatWeights[k].Apply();
-        }
+       
+            splatWeights.SetPixels(splatWeightsColors[0]);
+        splatWeights.Apply();
+
 
 
     }
@@ -335,8 +323,8 @@ public class FastTerrain : MonoBehaviour
 
         Shader.SetGlobalTexture("SpaltIDTex", splatID);
       
-            Shader.SetGlobalTexture("SplatWeights_0_1Tex", splatWeights[0]);
-            Shader.SetGlobalTexture("SplatWeights_2_3Tex", splatWeights[1]);
+            Shader.SetGlobalTexture("SplatWeights_0_1Tex", splatWeights);
+      
         
 
         Shader.SetGlobalTexture("AlbedoAtlas", albedoAtlas);
@@ -363,10 +351,9 @@ public class FastTerrain : MonoBehaviour
     void savePngs()
     {
         System.IO.File.WriteAllBytes(Application.dataPath + @"/splatID.png", splatID.EncodeToPNG());
-        for (int i = 0; i < splatWeights.Length; i++)
-        {
-            System.IO.File.WriteAllBytes(Application.dataPath + @"/splatWeights" + i + ".png", splatWeights[i].EncodeToPNG());
-        }
+      
+            System.IO.File.WriteAllBytes(Application.dataPath + @"/splatWeights.png", splatWeights.EncodeToPNG());
+       
 
     }
 
