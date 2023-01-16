@@ -144,7 +144,7 @@ public class FastTerrain : MonoBehaviour
                     splatDatas.Add(sd);
                 }
 
-                Vector4 lostWeight = Vector4.zero;
+              
                 //按权排序选出相邻4个点最权重最大的ID 作为4个点都采样的公用id
                 splatDatas.Sort((x, y) => -(x.weight).CompareTo(y.weight));
                 for (int k = 4; k < originSplatTexs.Count * 4; k++)
@@ -201,16 +201,9 @@ public class FastTerrain : MonoBehaviour
                     Color corner10 = originSplatTexs[layer].GetPixel(j + 1, i);
                     Color corner01 = originSplatTexs[layer].GetPixel(j, i + 1);
                     Color corner11 = originSplatTexs[layer].GetPixel(j + 1, i + 1);
-                    corner00[channel] += lostWeight.x * corner00[channel] / top4Weight.x;
+                    corner00[channel] *= 1.0f / top4Weight.x;
                     originSplatTexs[layer].SetPixel(j, i, corner00);
-
-                    corner10[channel] += lostWeight.y * corner10[channel] / top4Weight.y;
-                    originSplatTexs[layer].SetPixel(j + 1, i, corner10);
-
-                    corner01[channel] += lostWeight.z * corner01[channel] / top4Weight.z;
-                    originSplatTexs[layer].SetPixel(j, i + 1, corner01);
-                    corner11[channel] += lostWeight.w * corner11[channel] / top4Weight.w;
-                    originSplatTexs[layer].SetPixel(j + 1, i + 1, corner11);
+ 
                 }
             }
         }
@@ -223,8 +216,7 @@ public class FastTerrain : MonoBehaviour
                 List<SplatData> splatDatas = new List<SplatData>();
                 int index = i * wid + j;
               
-                //边界处没有x+ y+纹素 所以不做4顶点计算 只算自己
-                int useOffset = i != hei - 1 && j != wid - 1 ? 1 : 0;
+          
                 
                 for (int k = 0; k < originSplatTexs.Count; k++)
                 {
