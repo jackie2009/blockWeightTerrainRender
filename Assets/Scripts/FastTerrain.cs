@@ -160,7 +160,7 @@ public class FastTerrain : MonoBehaviour
                     Color corner10 = originSplatTexs[layer].GetPixel(j + 1, i);
                     Color corner01 = originSplatTexs[layer].GetPixel(j, i + 1);
                     Color corner11 = originSplatTexs[layer].GetPixel(j + 1, i + 1);
-                    lostWeight += new Vector4(corner00[channel], corner10[channel], corner01[channel], corner11[channel]);
+ 
                     corner00[channel] = 0;
                     originSplatTexs[layer].SetPixel(j, i, corner00);
 
