@@ -81,15 +81,7 @@ void SplatmapVert(inout appdata_full v, out Input data)
              float4 weight10 = tex2D(SplatWeights_0_1Tex, IN.tc_Control + offsetFix + float2(1.0, 0.0) / SpaltIDTexSize);
              float4 weight01 = tex2D(SplatWeights_0_1Tex, IN.tc_Control + offsetFix + float2(0.0, 1.0) / SpaltIDTexSize);
              float4 weight11 = tex2D(SplatWeights_0_1Tex, IN.tc_Control + offsetFix + float2(1.0, 1.0) / SpaltIDTexSize);
-                                                                                                                                                       
-             weight00.xyzw =float4( weight00.yxz,0);
-             weight10.xyzw = float4(weight10.yxz, 0);
-             weight01.xyzw = float4(weight01.yxz, 0);
-             weight11.xyzw = float4(weight11.yxz, 0);
-          weight00.w = 1 - sum4(weight00);
-             weight10.w = 1 - sum4(weight10);
-             weight01.w = 1 - sum4(weight01);
-             weight11.w = 1 - sum4(weight11); 
+    
          float4 weight4 = 0;
         
          float4 martchWeight10;
@@ -114,10 +106,10 @@ void SplatmapVert(inout appdata_full v, out Input data)
          martchWeight01.w = sum4((id_00.aaaa == id_01.rgba ? 1 : 0) * weight01);
          martchWeight11.w = sum4((id_00.aaaa == id_11.rgba ? 1 : 0) * weight11);
          mixedWeight = lerp(lerp(weight00, martchWeight10, uv_frac.x), lerp(martchWeight01, martchWeight11, uv_frac.x), uv_frac.y);
-       //  mixedWeight.w = 1 - mixedWeight.x - mixedWeight.y - mixedWeight.z;
-         weight = dot(mixedWeight, half4(1, 1, 1, 1));
+      
+        weight = dot(mixedWeight, half4(1, 1, 1, 1));
   
-         mixedWeight  /= (weight + 1e-3f);
+         mixedWeight  /= (weight + 1e-3f); 
        
 
          

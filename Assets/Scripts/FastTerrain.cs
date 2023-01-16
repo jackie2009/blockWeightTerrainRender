@@ -15,7 +15,7 @@ public class FastTerrain : MonoBehaviour
     //splat rgba存放 相邻4个顶点一起计算权重后 权重最大的4个id
     public Texture2D splatID;
     //记录 相邻4个顶点相对splatID的权重,因为不是独立顶点记录所以不会出现常见插值错误,(不同id插值权重导致错误)
-    //这里用1张 rgba32 存文件后设置为rgb16 图 来存 前3个权重,第四个用 1-r-g-b获得,为了极限压缩显存,这里不再存周围4个点权重 而是通过多3次偏移采样来获取周围权重.但在1050ti上会增加0.2ms gpu左右开销.要省显存 还是省计算 根据实际项目选择
+    //这里用1张 rgba32 存文件后设置为rgb16 图 来存 前4个权重,不采用存3个 第4个用 1-r-g-b获得的原因是新版unity 或houdini出的地形支持 总权重>1的模式,为了极限压缩显存,这里不再存周围4个点权重 而是通过多3次偏移采样来获取周围权重.但在1050ti上会增加0.2ms gpu左右开销.要省显存 还是省计算 根据实际项目选择
     public Texture2D  splatWeights;
     [Range(0, 5)]
     public int weightMipmap = 0;
@@ -144,7 +144,7 @@ public class FastTerrain : MonoBehaviour
                     splatDatas.Add(sd);
                 }
 
-              
+                Vector4 lostWeight = Vector4.zero;
                 //按权排序选出相邻4个点最权重最大的ID 作为4个点都采样的公用id
                 splatDatas.Sort((x, y) => -(x.weight).CompareTo(y.weight));
                 for (int k = 4; k < originSplatTexs.Count * 4; k++)
@@ -160,7 +160,7 @@ public class FastTerrain : MonoBehaviour
                     Color corner10 = originSplatTexs[layer].GetPixel(j + 1, i);
                     Color corner01 = originSplatTexs[layer].GetPixel(j, i + 1);
                     Color corner11 = originSplatTexs[layer].GetPixel(j + 1, i + 1);
- 
+                    lostWeight += new Vector4(corner00[channel], corner10[channel], corner01[channel], corner11[channel]);
                     corner00[channel] = 0;
                     originSplatTexs[layer].SetPixel(j, i, corner00);
 
@@ -201,14 +201,22 @@ public class FastTerrain : MonoBehaviour
                     Color corner10 = originSplatTexs[layer].GetPixel(j + 1, i);
                     Color corner01 = originSplatTexs[layer].GetPixel(j, i + 1);
                     Color corner11 = originSplatTexs[layer].GetPixel(j + 1, i + 1);
-                    corner00[channel] *= 1.0f / top4Weight.x;
+                    corner00[channel] += lostWeight.x * corner00[channel] / top4Weight.x;
                     originSplatTexs[layer].SetPixel(j, i, corner00);
- 
+
+                    corner10[channel] += lostWeight.y * corner10[channel] / top4Weight.y;
+                    originSplatTexs[layer].SetPixel(j + 1, i, corner10);
+
+                    corner01[channel] += lostWeight.z * corner01[channel] / top4Weight.z;
+                    originSplatTexs[layer].SetPixel(j, i + 1, corner01);
+                    corner11[channel] += lostWeight.w * corner11[channel] / top4Weight.w;
+                    originSplatTexs[layer].SetPixel(j + 1, i + 1, corner11);
                 }
             }
         }
 
-        
+
+
         for (int i = 0; i < hei; i++)
         {
             for (int j = 0; j < wid; j++)
@@ -265,15 +273,10 @@ public class FastTerrain : MonoBehaviour
                     Color corner01 = originSplatTexs[layer].GetPixel(j, i + 1);
                     Color corner11 = originSplatTexs[layer].GetPixel(j + 1, i + 1);
 
-                    splatWeightsColors[k][index] = new Vector4(corner00[channel], corner10[channel], corner01[channel], corner11[channel]) ;
+                    splatWeightsColors[0][index][k] = corner00[channel] ;
 
                 }
-                // 合并4张图 到2张
-                Vector4 w0 =splatWeightsColors[0][index];
-                Vector4 w1 =splatWeightsColors[1][index];
-                Vector4 w2 =splatWeightsColors[2][index];
-                Vector4 w3 =splatWeightsColors[3][index];
-                splatWeightsColors[0][index] = new Color( w1.x, w0.x, w2.x);//rgb16 是 565 压缩 g通道精度高 存放权重最大值
+          
  
 
             }
